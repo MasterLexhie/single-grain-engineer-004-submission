@@ -245,10 +245,13 @@ The architecture intentionally avoids unnecessary operational complexity so that
 
 # Validation
 
-Validate anomaly detection using:
+# Validation
+
+Validate anomaly detection and capacity assumptions using:
 
 ```bash
 python3 artifacts/detect_anomalies.py
+python3 artifacts/capacity_cost_model.py
 ```
 
 Verify that:
@@ -257,6 +260,13 @@ Verify that:
 - Evidence references point to artifacts
 - Numerical claims have source labels
 - Fixture analysis is reproducible
+- Traffic assumptions match the documented capacity model
+- Peak traffic calculations are validated against the expected workload assumptions
+- AWS service sizing and estimated monthly costs remain within the defined budget constraints
+
+The capacity and cost model is an assumption-driven validation artifact. It documents baseline traffic, peak scaling assumptions, service sizing estimates, and cost projections used to evaluate whether the proposed architecture can support the target workload.
+
+The anomaly detection artifact validates data quality handling, while the capacity cost model validates operational feasibility. Together they provide evidence that the proposed system is both technically reliable and practical to operate.
 
 ---
 
