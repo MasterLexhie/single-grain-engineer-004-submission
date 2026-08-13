@@ -1,4 +1,8 @@
-# Real-Time Analytics Platform Design Submission
+# Real-Time Analytics Pipeline Design Submission
+
+Brief version: 2026-07
+fixture checksum: 1aeb24b415009e89fcf8acb5a178410faf216dc17b16920d9849ecc8bbb24235
+
 
 ## 1. Executive Summary
 
@@ -351,21 +355,83 @@ The platform supports auditability and controlled data processing through:
 - Durable event retention
 - Replay capability
 - Validation workflows
-- Traceable event identifiers
+- Traceable identifiers including `event_id` and `tenant_id`
+- Raw event storage for investigation and recovery
 
-Automated decisions:
+## Data Quality Validation and Anomaly Handling
+
+The ingestion validation layer evaluates events from `fixtures/event_sample.jsonl` before events are accepted into downstream processing.
+
+The detection approach separates deterministic validation failures from heuristic risk signals.
+
+---
+
+## Deterministic Validation Findings
+
+| Anomaly Class | Affected Events | Reason | Pipeline Handling |
+|---|---|---|---|
+| `DUPLICATE_EVENTS` | `evt-0002` | Duplicate event identifier detected across multiple records | Retain first seen event and quarantine duplicate |
+| `SCHEMA_DRIFT` | `evt-0009` | Non-canonical fields detected (`timestamp → ts`, `page_path → path`, `ref → referrer`) | Canonicalise fields then validate required fields |
+| `MISSING_REQUIRED_FIELDS` | `evt-0009`, `evt-0011` | Missing required fields including `received_at` and `tenant_id` | Reject unless trusted enrichment exists |
+| `IMPOSSIBLE_TIMESTAMPS` | `evt-0005`, `evt-0006` | Event timestamp occurs after ingestion timestamp beyond allowed tolerance | Reject unless trusted clock correction applies |
+| `FUTURE_TIMESTAMPS` | `evt-0016` | Event timestamp is significantly ahead of ingestion time due to future/wrong-year timestamp | Reject unless trusted clock correction applies |
+| `MALFORMED_JSON` | Line 21 | JSON parsing failure prevents event interpretation | Quarantine event |
+
+---
+
+## Heuristic Risk Signals
+
+| Anomaly Class | Affected Events | Reason | Pipeline Handling |
+|---|---|---|---|
+| `BOT_TRAFFIC` | `evt-0012`, `evt-0013`, `evt-0014`, `evt-0015`, `evt-0016` | Scanner referrer patterns and burst behaviour indicate possible automated traffic | Increase bot risk score; do not immediately block |
+| `PII_IN_PROPERTIES` | `evt-0007` | Possible sensitive fields detected using property-name/value heuristics | Redact suspected sensitive values and continue controlled processing |
+| `PRIVACY_REQUEST_EVENTS` | `evt-0017` | Event type indicates privacy workflow requirement | Route to privacy workflow |
+
+Heuristic detections are treated as signals rather than confirmed violations. Automated blocking decisions are avoided unless supported by deterministic validation rules or approved business policies.
+
+---
+
+## Events Requiring Context Before Automated Action
+
+Some detected conditions require additional context before irreversible action is taken.
+
+### `BOT_TRAFFIC`
+
+- Scanner strings, user-agent patterns, and burst activity increase the likelihood of automated traffic but do not prove malicious behaviour.
+- The pipeline increases a bot risk score and routes events through controlled review or downstream filtering.
+
+### `PII_IN_PROPERTIES`
+
+- Property-based and regex detection identifies potential sensitive data but does not represent complete PII discovery.
+- Values are not logged, and suspected sensitive fields are redacted before further processing.
+
+### Timestamp Anomalies
+
+- Timestamp inconsistencies may result from clock skew, delayed producers, or trusted correction processes.
+- Events are validated against approved correction workflows before permanent rejection.
+
+---
+
+## Human-Controlled Decisions
+
+### Automated Decisions
 
 - Event validation
-- Scaling actions
+- Schema normalisation
+- Duplicate handling
 - Retry handling
 - Replay execution
+- Risk scoring
 
-Human decisions:
+### Human Decisions
 
 - Migration approval
 - Compliance interpretation
 - Threshold changes
+- Bot enforcement policies
 - Production tradeoffs
+
+All validation outcomes remain auditable through event identifiers, tenant identifiers, validation results, quarantine records, and replay storage.
 
 ---
 
